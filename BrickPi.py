@@ -109,6 +109,61 @@ class Motor():
     def __str__(self):
         return self.name
 
+    def update_position(self):
+        self.position = self.brickpi.Encoder[self.port]
+
+    def get_position_in_degrees(self):
+        return (self.position % 720)/2
+
+    def stop(self, brake):
+
+        if brake:
+            logger.debug("Motor %s: applying brakes" % self)
+
+            # Run the motors in reverse direction to stop instantly
+            self.speed =  -1 * self.speed
+
+            self.brickpi.update_values()
+            time.sleep(.04) # 40ms initially
+
+        logger.debug("Motor %s: stopping" % self)
+        self.enabled = 0
+        self.brickpi.update_values()
+
+    # Once a motor is turning it doesn't stop instantly. How quickly it stops
+    # depends on how fast it is moving. The return values below are from trial
+    # and error with a NXT motor
+    #
+    # Return the number of milliseconds it will take to stop a motor.
+    #
+    def get_stop_delay(self, ticks, milliseconds):
+
+        ticks_per_ms = float(ticks/milliseconds)
+        #logger.debug('get_stop_delay ticks_per_ms %s' % ticks_per_ms)
+
+        if ticks_per_ms >= 0.75:
+            return 45
+
+        elif ticks_per_ms >= 0.60:
+            return 44
+
+        elif ticks_per_ms >= 0.50:
+            return 43
+
+        elif ticks_per_ms >= 0.40:
+            return 42
+
+        elif ticks_per_ms >= 0.30:
+            return 45
+
+        elif ticks_per_ms >= 0.20:
+            return 45
+
+        elif ticks_per_ms >= 0.10:
+            return 30
+
+        return 0
+
     def rotate(self, power, degrees):
         self.power = abs(power)
 
@@ -122,52 +177,81 @@ class Motor():
             self.speed = -1 * self.power
 
         self.brickpi.update_values()
-        self.position = self.brickpi.Encoder[self.port]
+        self.update_position()
 
         # Final value when the motor has to be stopped; One encoder value counts for 0.5 degrees
         self.target_position = self.position + (degrees * 2)
+
+        logger.info('Motor %s: Rotate with power %d, degrees %d, speed %d, move from %d/%d to %d/%d' % \
+                    (self, self.power, degrees, self.speed,
+                     self.position%720/2, self.position,
+                     self.target_position%720/2, self.target_position))
+
+        prev_time_ms = self.brickpi.current_time_ms()
+        prev_position = self.position
+
+        # Turn on the motor
         self.enabled = 1
+        self.brickpi.update_values()
+
+        # Go to sleep for the default amount of 100ms
+        default_sleep_time_ms = float(100)
+        sleep_error_ms = self.brickpi.sleep_error_ms
+        time.sleep(float(default_sleep_time_ms - sleep_error_ms)/1000)
+
+        # This lets you print the degree symbol
+        degree_str =  u'\xb0'
 
         while True:
 
-            # Ask BrickPi to update values for sensors/motors
+            # We've been asleep for (probably) 100ms, note the current time
+            now_ms = self.brickpi.current_time_ms()
+
+            # Ask BrickPi to update values for sensors/motors...this takes 10ms
             if not self.brickpi.update_values():
+                logger.error('update_values returned False')
                 break
 
-            self.position = self.brickpi.Encoder[self.port]
-            stop = False
+            # Update the position for this motor
+            self.update_position()
 
-            # Rotating forward, have we rotated far enough?
-            if degrees > 0:
-                if self.position >= self.target_position:
-                    stop = True
+            ticks_to_go = abs(self.target_position - self.position)
+            ticks_delta = abs(float(self.position - prev_position))
 
-            # Rotating backward, have we rotated far enough?
+            if not ticks_delta:
+                self.stop(False)
+                logger.error('Not enough power to turn the motor')
+                return
+
+            time_delta = float(now_ms - prev_time_ms)
+            ticks_per_ms = ticks_delta/time_delta
+            ticks_to_go = abs(self.target_position - self.position)
+            time_to_sleep = float(ticks_to_go/ticks_per_ms)
+
+            logger.debug("Motor %s: position %3d%s, %3d%s to go, moved %3d%s in the last %dms, will reach target in %dms" % \
+                         (self,
+                          (self.position%720)/2, degree_str,
+                          ticks_to_go/2, degree_str,
+                          ticks_delta%720/2, degree_str, time_delta,
+                          time_to_sleep))
+
+            # We are within 200ms of our target position.  Calculate how many ms
+            # to sleep so that we can wake up, stop the motor and hopefully be
+            # at the correct position.
+            if time_to_sleep < 200:
+                stop_delay = self.get_stop_delay(ticks_delta, time_delta)
+                sleep_for_ms = float(int(time_to_sleep - stop_delay - sleep_error_ms))
+                logger.debug('Motor %s: Final sleep for %sms' % (self, sleep_for_ms))
+                if sleep_for_ms > 0:
+                    time.sleep(sleep_for_ms/1000)
+                self.stop(True)
+                return
+
+            # Sleep for 100ms
             else:
-                if self.position <= self.target_position:
-                    stop = True
-
-            logger.debug("Motor %s, current position %d, final position %d, stop %s" % (self, self.position, self.target_position, stop))
-
-            if stop:
-                self.enabled = 0
-
-                # Run the motors in reverse direction to stop instantly
-                '''
-                if deg[i] > 0:
-                    BrickPi.MotorSpeed[port[i]] = -power[i]
-                else:
-                    BrickPi.MotorSpeed[port[i]] = power[i]
-
-                update_values()
-                time.sleep(.04)
-                BrickPi.MotorEnable[port[i]] = 0
-                update_values()
-                '''
-                break
-
-            # Sleep for the sampling time given (default:100 ms)
-            time.sleep(0.1)
+                time.sleep(float(default_sleep_time_ms - sleep_error_ms)/1000)
+                prev_time_ms = now_ms
+                prev_position = self.position
 
 
 class BrickPi():
@@ -178,18 +262,20 @@ class BrickPi():
         self.ser.port='/dev/ttyAMA0'
         self.ser.baudrate = 500000
 
+        # Not sure if this varies from Pi to Pi but on mine if you tell it to
+        # sleep for 100ms it sleeps for 103ms or 104ms
+        self.sleep_error_ms = 4
+
         self.motors = []
         for port in (PORT_A, PORT_B, PORT_C, PORT_D):
             self.motors.append(Motor(self, port))
 
-        self.EncoderOffset = [None] * 4
-        self.Encoder       = [None] * 4
-
-        self.Sensor         = [None] * 4
-        self.SensorArray    = [ [None] * 4 for i in range(4) ]
-        self.SensorType     = [0] * 4
-        self.SensorSettings = [ [None] * 8 for i in range(4) ]
-
+        self.EncoderOffset    = [None] * 4
+        self.Encoder          = [None] * 4
+        self.Sensor           = [None] * 4
+        self.SensorArray      = [ [None] * 4 for i in range(4) ]
+        self.SensorType       = [0] * 4
+        self.SensorSettings   = [ [None] * 8 for i in range(4) ]
         self.SensorI2CDevices = [None] * 4
         self.SensorI2CSpeed   = [None] * 4
         self.SensorI2CAddr    = [ [None] * 8 for i in range(4) ]
@@ -261,6 +347,14 @@ class BrickPi():
             for i in range(len(InArray)):
                 self.Array[i] = InArray[i]
 
+        self.update_values()
+
+        for motor in self.motors:
+            motor.update_position()
+
+    def current_time_ms(self):
+        return int(round(time.time() * 1000))
+
     def GetBits(self, byte_offset, bit_offset, bits):
         result = 0
         i = bits
@@ -330,7 +424,7 @@ class BrickPi():
         for i in rx_buffer[2:]:
             InArray.append(ord(i))
 
-        #Checksum equals sum(InArray)+len(InArray)
+        # Checksum equals sum(InArray)+len(InArray)
         if (CheckSum % 256) != ord(rx_buffer[0]):
             return (-5, 0, [])
 
@@ -338,23 +432,32 @@ class BrickPi():
 
         return (0, InBytes, InArray)
 
-    def update_values(self):
-        logger.info('update_values called')
+    def update_values(self, debug=False):
+        if debug:
+            logger.info('')
+            logger.info('update_values start')
         ret = False
         i = 0
 
         while i < 2 :
+            if debug:
+                logger.info('update_values loop start')
+
             if not ret:
                 Retried = 0
-            #Retry Communication from here, if failed
+            # Retry Communication from here, if failed
 
             self.Array = [0] * 256
             self.Array[BYTE_MSG_TYPE] = MSG_TYPE_VALUES
             self.Bit_Offset = 0
 
+            # Loop over ports 0 & 1 when 'i' is 0
+            # Loop over ports 2 & 3 when 'i' is 1
             for ii in range(2):
                 port = (i * 2) + ii
-                logger.info('update_values loop1, i %d, ii %d, port %d' % (i, ii, port))
+
+                if debug:
+                    logger.info('update_values loop1, i %d, ii %d, port %d' % (i, ii, port))
 
                 if self.EncoderOffset[port]:
                     Temp_Value = self.EncoderOffset[port]
@@ -365,7 +468,7 @@ class BrickPi():
                         Temp_ENC_DIR = 1
                         Temp_Value *= -1
 
-                    Temp_BitsNeeded = BitsNeeded(Temp_Value) + 1
+                    Temp_BitsNeeded = self.BitsNeeded(Temp_Value) + 1
                     self.AddBits(1, 0, 5, Temp_BitsNeeded)
                     Temp_Value *= 2
                     Temp_Value |= Temp_ENC_DIR
@@ -374,12 +477,15 @@ class BrickPi():
                 else:
                     self.AddBits(1, 0, 1, 0)
 
+            # Motors
+            # Loop over ports 0 & 1 when 'i' is 0
+            # Loop over ports 2 & 3 when 'i' is 1
             for ii in range(2):
                 port = (i *2) + ii
-                # logger.info('update_values loop2, i %d, ii %d, port %d' % (i, ii, port))
+                if debug:
+                    logger.info('update_values loop2, i %d, ii %d, port %d' % (i, ii, port))
                 motor = self.motors[port]
                 speed = motor.speed
-                #speed = self.MotorSpeed[port]
                 direc = 0
 
                 if speed < 0:
@@ -391,9 +497,13 @@ class BrickPi():
 
                 self.AddBits(1, 0, 10, ((((speed & 0xFF) << 2) | (direc << 1) | (motor.enabled & 0x01)) & 0x3FF))
 
+            # Sensors
+            # Loop over ports 0 & 1 when 'i' is 0
+            # Loop over ports 2 & 3 when 'i' is 1
             for ii in range(2):
                 port =  (i * 2) + ii
-                # logger.info('update_values loop3, i %d, ii %d, port %d' % (i, ii, port))
+                if debug:
+                    logger.info('update_values loop3, i %d, ii %d, port %d' % (i, ii, port))
 
                 if (self.SensorType[port] == TYPE_SENSOR_I2C or
                     self.SensorType[port] == TYPE_SENSOR_I2C_9V or
@@ -410,7 +520,14 @@ class BrickPi():
 
             # eq to UART_TX_BYTES
             tx_bytes = (((self.Bit_Offset + 7) / 8 ) + 1)
+
+            if debug:
+                logger.info('update_values transmit begin %d bytes' % tx_bytes)
+
             self.transmit(self.Address[i], tx_bytes, self.Array)
+
+            if debug:
+                logger.info('update_values transmit end')
 
             # check timeout
             result, BytesReceived, InArray = self.receive(0.007500)
@@ -484,6 +601,10 @@ class BrickPi():
                     self.Sensor[ii + (i * 2)] = self.GetBits(1,0,10)
 
             i += 1
+            if debug:
+                logger.info('update_values i = %d' % i)
 
+        if debug:
+            logger.info('update_values end')
         return True
 
