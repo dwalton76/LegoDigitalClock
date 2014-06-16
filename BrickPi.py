@@ -1,4 +1,9 @@
 
+#
+# Credit for the original source here goes to:
+# https://github.com/DexterInd/BrickPi_Python/blob/master/BrickPi.py
+#
+# It has been modified to make more use of classes.
 import time
 import serial
 import logging
