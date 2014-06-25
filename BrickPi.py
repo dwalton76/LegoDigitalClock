@@ -187,7 +187,7 @@ class Motor():
         # Final value when the motor has to be stopped; One encoder value counts for 0.5 degrees
         self.target_position = self.position + (degrees * 2)
 
-        logger.info('s: Rotate with power %d, degrees %d, speed %d, move from %d/%d to %d/%d' % \
+        logger.info('%s: Rotate with power %d, degrees %d, speed %d, move from %d/%d to %d/%d' % \
                     (self, self.power, degrees, self.speed,
                      self.position%720/2, self.position,
                      self.target_position%720/2, self.target_position))
