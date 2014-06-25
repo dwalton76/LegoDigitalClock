@@ -160,10 +160,13 @@ class LegoClock(BrickPi):
         now = datetime.datetime.now()
         hour = now.hour
 
-        if not use_military_time and hour > 12:
+        if not hour:
+            hour = 12
+        elif not use_military_time and hour > 12:
             hour -= 12
 
         hh_mm = "%02d:%02d" % (hour, now.minute)
+        logger.info('SET: %s' % hh_mm)
         result = re.search('(\d)(\d):(\d)(\d)', hh_mm)
         self.digit1.target = int(result.group(1))
         self.digit2.target = int(result.group(2))
@@ -171,10 +174,10 @@ class LegoClock(BrickPi):
         self.digit4.target = int(result.group(4))
 
     def move_digit(self, digit):
-        logger.info('%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target]))
-
         if digit.current == digit.target:
             return
+
+        logger.info('%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target]))
 
         # About turns[]
         # - the numbers indicate the number of 90 degree turns of the top component
@@ -254,5 +257,7 @@ if __name__ == '__main__':
         myclock.set_targets(False)
         myclock.move_digits()
         myclock.save_state()
-        sleep(5)
+        now = datetime.datetime.now()
+        logger.info('sleeping for: %d' % (60 - now.second + 1))
+        sleep(60 - now.second + 1)
 
