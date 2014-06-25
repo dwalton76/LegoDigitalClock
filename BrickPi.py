@@ -123,7 +123,7 @@ class Motor():
     def stop(self, brake):
 
         if brake:
-            logger.debug("Motor %s: applying brakes" % self)
+            #logger.debug("Motor %s: applying brakes" % self)
 
             # Run the motors in reverse direction to stop instantly
             self.speed =  -1 * self.speed
@@ -131,7 +131,7 @@ class Motor():
             self.brickpi.update_values()
             time.sleep(.04) # 40ms initially
 
-        logger.debug("Motor %s: stopping" % self)
+        #logger.debug("Motor %s: stopping" % self)
         self.enabled = 0
         self.brickpi.update_values()
 
@@ -187,7 +187,7 @@ class Motor():
         # Final value when the motor has to be stopped; One encoder value counts for 0.5 degrees
         self.target_position = self.position + (degrees * 2)
 
-        logger.info('Motor %s: Rotate with power %d, degrees %d, speed %d, move from %d/%d to %d/%d' % \
+        logger.info('s: Rotate with power %d, degrees %d, speed %d, move from %d/%d to %d/%d' % \
                     (self, self.power, degrees, self.speed,
                      self.position%720/2, self.position,
                      self.target_position%720/2, self.target_position))
@@ -233,12 +233,14 @@ class Motor():
             ticks_to_go = abs(self.target_position - self.position)
             time_to_sleep = float(ticks_to_go/ticks_per_ms)
 
-            logger.debug("Motor %s: position %3d%s, %3d%s to go, moved %3d%s in the last %dms, will reach target in %dms" % \
+            '''
+            logger.debug("%s: position %3d%s, %3d%s to go, moved %3d%s in the last %dms, will reach target in %dms" % \
                          (self,
                           (self.position%720)/2, degree_str,
                           ticks_to_go/2, degree_str,
                           ticks_delta%720/2, degree_str, time_delta,
                           time_to_sleep))
+            '''
 
             # We are within 200ms of our target position.  Calculate how many ms
             # to sleep so that we can wake up, stop the motor and hopefully be
@@ -246,7 +248,7 @@ class Motor():
             if time_to_sleep < 200:
                 stop_delay = self.get_stop_delay(ticks_delta, time_delta)
                 sleep_for_ms = float(int(time_to_sleep - stop_delay - sleep_error_ms))
-                logger.debug('Motor %s: Final sleep for %sms' % (self, sleep_for_ms))
+                #logger.debug('%s: Final sleep for %sms' % (self, sleep_for_ms))
                 if sleep_for_ms > 0:
                     time.sleep(sleep_for_ms/1000)
                 self.stop(True)
@@ -300,7 +302,13 @@ class BrickPi():
             self.ser.open()
         assert self.ser.isOpen(), "Serial failed to open"
 
-        # BrickPiSetupSensors
+        # Get the initial motor positions
+        self.update_values()
+        for motor in self.motors:
+            motor.update_position()
+
+    # BrickPiSetupSensors
+    def SetupSensors(self):
         for i in range(2):
             self.Array = [0] * 256
             self.Bit_Offset = 0
@@ -353,9 +361,6 @@ class BrickPi():
                 self.Array[i] = InArray[i]
 
         self.update_values()
-
-        for motor in self.motors:
-            motor.update_position()
 
     def current_time_ms(self):
         return int(round(time.time() * 1000))
