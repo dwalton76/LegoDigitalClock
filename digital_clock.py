@@ -198,7 +198,6 @@ class LegoClock(BrickPi):
         self.move_digit(self.digit3)
         self.move_digit(self.digit2)
         self.move_digit(self.digit1)
-        # dwalton
         return
 
         # Enable this once it is thread safe

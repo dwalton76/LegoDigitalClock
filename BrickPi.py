@@ -8,8 +8,9 @@ import time
 import serial
 import logging
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)5s %(module)8s: %(message)s')
+logging.basicConfig(filename='/var/log/brickpi.log',
+                    level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)5s %(module)13s: %(message)s')
 logger = logging.getLogger(__name__)
 
 PORT_A = 0

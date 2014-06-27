@@ -1,1 +1,3 @@
 *.pyc
+digital_clock.state
+nohup.out
