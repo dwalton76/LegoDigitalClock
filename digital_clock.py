@@ -31,7 +31,7 @@ turns[1][3] = (5, -8, 6, -4, 2)
 turns[1][4] = (3, -3, 2)
 turns[1][5] = (5, -8, 6, -2)
 turns[1][6] = (5, -7, 5)
-turns[1][7] = (1)
+turns[1][7] = (1,)
 turns[1][8] = (5, -7, 5, -2)
 turns[1][9] = (3, -3, 1)
 
@@ -124,7 +124,7 @@ turns[9][0] = (4, -7, 6, -4, 1)
 turns[9][1] = (-3, 3, -1)
 turns[9][2] = (4, -6, 2)
 turns[9][3] = (4, -8, 6, -4, 2)
-turns[9][4] = (1)
+turns[9][4] = (1,)
 turns[9][5] = (4, -8, 6, -2)
 turns[9][6] = (4, -7, 5)
 turns[9][7] = (-3, 3)
@@ -142,7 +142,7 @@ class LegoClock(BrickPi):
 
     # We keep track of the last known position of each digit
     def load_state(self):
-        fh = open('digital_clock.state', 'r')
+        fh = open('/root/LegoDigitalClock/digital_clock.state', 'r')
         line = fh.readlines()[0]
         fh.close()
         result = re.search('(\d)(\d):(\d)(\d)', line)
@@ -152,7 +152,7 @@ class LegoClock(BrickPi):
         self.digit4.current  = int(result.group(4))
 
     def save_state(self):
-        fh = open('digital_clock.state', 'w')
+        fh = open('/root/LegoDigitalClock/digital_clock.state', 'w')
         fh.write('%d%d:%d%d\n' % (self.digit1.current, self.digit2.current, self.digit3.current, self.digit4.current))
         fh.close()
 
@@ -188,6 +188,7 @@ class LegoClock(BrickPi):
         # http://gears.sariel.pl/
         #
         # I am using a power of 80
+        print "Current: %d, Target: %d, Turns: %s" % (digit.current, digit.target, str(turns[digit.current][digit.target]))
         for x in turns[digit.current][digit.target]:
             digit.rotate(80, 270 * -x)
         digit.current = digit.target
@@ -252,11 +253,9 @@ if __name__ == '__main__':
     myclock = LegoClock()
     myclock.load_state()
 
-    while (True):
-        myclock.set_targets(False)
-        myclock.move_digits()
-        myclock.save_state()
-        now = datetime.datetime.now()
-        logger.info('sleeping for: %d' % (60 - now.second + 1))
-        sleep(60 - now.second + 1)
+    # Use a cronjob to control how often the clock updates
+    sleep(1)
+    myclock.set_targets(True)
+    myclock.move_digits()
+    myclock.save_state()
 

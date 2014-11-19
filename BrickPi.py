@@ -8,6 +8,7 @@ import time
 import serial
 import logging
 
+#logging.basicConfig(level=logging.DEBUG,
 logging.basicConfig(filename='/var/log/brickpi.log',
                     level=logging.DEBUG,
                     format='%(asctime)s %(levelname)5s %(module)13s: %(message)s')
