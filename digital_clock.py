@@ -8,6 +8,7 @@ sys.path.remove('/usr/local/lib/python2.7/dist-packages/scratchpy-0.1.0-py2.7.eg
 from BrickPi import *
 from time import sleep
 import datetime
+import logging
 
 
 turns = range(10)
@@ -69,7 +70,7 @@ turns[4][5] = (-9, 6, -2) # double check this one
 turns[4][6] = (3, -7, 5)
 turns[4][7] = (-4, 3)
 turns[4][8] = (3, -7, 5, -3, 1)
-turns[4][9] = (-1)
+turns[4][9] = (-1,)
 
 turns[5] = range(10)
 turns[5][0] = (3, -4, 1)
@@ -97,7 +98,7 @@ turns[6][9] = (-7, 7, -3, 1)
 
 turns[7] = range(10)
 turns[7][0] = (4, -7, 6, -4, 1)
-turns[7][1] = (-1)
+turns[7][1] = (-1,)
 turns[7][2] = (4, -6, 2)
 turns[7][3] = (4, -8, 6, -4, 2)
 turns[7][4] = (2, -3, 2)
@@ -114,7 +115,7 @@ turns[8][2] = (4, -6, 2)
 turns[8][3] = (-4, 6, -4, 2)
 turns[8][4] = (-5, 7, -3, 2)
 turns[8][5] = (-4, 6, -2) # check this one
-turns[8][6] = (2)
+turns[8][6] = (2,)
 turns[8][7] = (-5, 7, -5, 3)
 turns[8][8] = None
 turns[8][9] = (7, -7, 6, -3, 1)
@@ -166,7 +167,7 @@ class LegoClock(BrickPi):
             hour -= 12
 
         hh_mm = "%02d:%02d" % (hour, now.minute)
-        logger.info('SET: %s' % hh_mm)
+        log.info('SET: %s' % hh_mm)
         result = re.search('(\d)(\d):(\d)(\d)', hh_mm)
         self.digit1.target = int(result.group(1))
         self.digit2.target = int(result.group(2))
@@ -174,10 +175,12 @@ class LegoClock(BrickPi):
         self.digit4.target = int(result.group(4))
 
     def move_digit(self, digit):
+
         if digit.current == digit.target:
+            print '%s: is already %d' % (digit, digit.current)
             return
 
-        logger.info('%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target]))
+        print '%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target])
 
         # About turns[]
         # - the numbers indicate the number of 90 degree turns of the top component
@@ -208,7 +211,7 @@ class LegoClock(BrickPi):
             self.digit2.current != self.digit2.target and
             self.digit3.current != self.digit3.target and
             self.digit4.current != self.digit4.target):
-            logger.info('move_digits: change 4 digits')
+            log.info('move_digits: change 4 digits')
 
             self.digit2.start()
             self.digit4.start()
@@ -224,7 +227,7 @@ class LegoClock(BrickPi):
         elif (self.digit2.current != self.digit2.target and
               self.digit3.current != self.digit3.target and
               self.digit4.current != self.digit4.target):
-            logger.info('move_digits: change 3 digits')
+            log.info('move_digits: change 3 digits')
             self.digit2.start()
             self.digit4.start()
             self.digit2.join()
@@ -236,7 +239,7 @@ class LegoClock(BrickPi):
         # Must change 2 digits
         elif (self.digit3.current != self.digit3.target and
               self.digit4.current != self.digit4.target):
-            logger.info('move_digits: change 2 digits')
+            log.info('move_digits: change 2 digits')
             self.digit3.start()
             self.digit3.join()
             self.digit4.start()
@@ -244,12 +247,16 @@ class LegoClock(BrickPi):
 
         # Only update the minute
         elif self.digit4.current != self.digit4.target:
-            logger.info('move_digits: change 1 digit')
+            log.info('move_digits: change 1 digit')
             self.digit4.start()
             self.digit4.join()
         '''
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)5s: %(message)s')
+    log = logging.getLogger(__name__)
+
     myclock = LegoClock()
     myclock.load_state()
 
@@ -258,4 +265,3 @@ if __name__ == '__main__':
     myclock.set_targets(True)
     myclock.move_digits()
     myclock.save_state()
-
