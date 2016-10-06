@@ -1,18 +1,22 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-import threading
 import re
 import sys
-sys.path.remove('/usr/local/lib/python2.7/dist-packages/BrickPi-0.0.0-py2.7.egg')
-sys.path.remove('/usr/local/lib/python2.7/dist-packages/scratchpy-0.1.0-py2.7.egg')
-from BrickPi import *
-from time import sleep
 import datetime
 import logging
+from time import sleep
+from ev3dev.auto import OUTPUT_A, OUTPUT_B, OUTPUT_C, OUTPUT_D
+from ev3dev.helper import LargeMotor
 
+log = logging.getLogger(__name__)
 
-turns = range(10)
-turns[0] = range(10)
+turns = []
+for x in range(10):
+    turns.append([])
+
+    for y in range(10):
+        turns[x].append(None)
+
 turns[0][0] = None
 turns[0][1] = (-5, 7, -5, 3, -1)
 turns[0][2] = (4, -6, 2)
@@ -24,7 +28,6 @@ turns[0][7] = (-5, 7, -5, 3)
 turns[0][8] = (2, 3, 1)
 turns[0][9] = (-5, 7, -3, 1)
 
-turns[1] = range(10)
 turns[1][0] = (5, -7, 6, -4, 1)
 turns[1][1] = None
 turns[1][2] = (5, -6, 2)
@@ -36,7 +39,6 @@ turns[1][7] = (1,)
 turns[1][8] = (5, -7, 5, -2)
 turns[1][9] = (3, -3, 1)
 
-turns[2] = range(10)
 turns[2][0] = (-3, 6, -4, 1)
 turns[2][1] = (-5, 7, -5, 3, -1)
 turns[2][2] = None
@@ -48,7 +50,6 @@ turns[2][7] = (-5, 7, -5, 3)
 turns[2][8] = (-3, 5, -3, 1)
 turns[2][9] = (-5, 7, -3, 1)
 
-turns[3] = range(10)
 turns[3][0] = (3, -4, 1)
 turns[3][1] = (-5, 7, -5, 3, -1)
 turns[3][2] = (4, 6, 2)
@@ -60,7 +61,6 @@ turns[3][7] = (-5, 7, -5, 3)
 turns[3][8] = (3, -5, 3, -1)
 turns[3][9] = (-5, 7, -3, 1)
 
-turns[4] = range(10)
 turns[4][0] = (3, -7, 6, -4, 1)
 turns[4][1] = (-4, 3, -1)
 turns[4][2] = (3, -6, 2)
@@ -72,7 +72,6 @@ turns[4][7] = (-4, 3)
 turns[4][8] = (3, -7, 5, -3, 1)
 turns[4][9] = (-1,)
 
-turns[5] = range(10)
 turns[5][0] = (3, -4, 1)
 turns[5][1] = (-5, 7, -5, 3, -1)
 turns[5][2] = (4, -6, 2)
@@ -84,7 +83,6 @@ turns[5][7] = (-5, 7, -5, 3)
 turns[5][8] = (3, -5, 3, -1)
 turns[5][9] = (-5, 7, -3, 1)
 
-turns[6] = range(10)
 turns[6][0] = (1, -4, 1)
 turns[6][1] = (-7, 7, -5, 3, -1)
 turns[6][2] = (2, -6, 2)
@@ -96,7 +94,6 @@ turns[6][7] = (-7, 7, -5, 3)
 turns[6][8] = (-3, 1)
 turns[6][9] = (-7, 7, -3, 1)
 
-turns[7] = range(10)
 turns[7][0] = (4, -7, 6, -4, 1)
 turns[7][1] = (-1,)
 turns[7][2] = (4, -6, 2)
@@ -108,7 +105,6 @@ turns[7][7] = None
 turns[7][8] = (4, -7, 5, -3, 1)
 turns[7][9] = (2, -3, 1)
 
-turns[8] = range(10)
 turns[8][0] = (3, -4, 1)
 turns[8][1] = (-5, 7, -5, 3, -1)
 turns[8][2] = (4, -6, 2)
@@ -120,7 +116,6 @@ turns[8][7] = (-5, 7, -5, 3)
 turns[8][8] = None
 turns[8][9] = (7, -7, 6, -3, 1)
 
-turns[9] = range(10)
 turns[9][0] = (4, -7, 6, -4, 1)
 turns[9][1] = (-3, 3, -1)
 turns[9][2] = (4, -6, 2)
@@ -132,18 +127,19 @@ turns[9][7] = (-3, 3)
 turns[9][8] = (4, -7, 5, -3, 1)
 turns[9][9] = None
 
-class LegoClock(BrickPi):
+
+class LegoClock(object):
+
     def __init__(self):
-        BrickPi.__init__(self)
         self.digits = []
-        self.digit1 = self.motors[PORT_D]
-        self.digit2 = self.motors[PORT_C]
-        self.digit3 = self.motors[PORT_B]
-        self.digit4 = self.motors[PORT_A]
+        self.digit1 = LargeMotor(OUTPUT_D)
+        self.digit2 = LargeMotor(OUTPUT_C)
+        self.digit3 = LargeMotor(OUTPUT_B)
+        self.digit4 = LargeMotor(OUTPUT_A)
 
     # We keep track of the last known position of each digit
     def load_state(self):
-        fh = open('/root/LegoDigitalClock/digital_clock.state', 'r')
+        fh = open('digital_clock.state', 'r')
         line = fh.readlines()[0]
         fh.close()
         result = re.search('(\d)(\d):(\d)(\d)', line)
@@ -151,10 +147,19 @@ class LegoClock(BrickPi):
         self.digit2.current  = int(result.group(2))
         self.digit3.current  = int(result.group(3))
         self.digit4.current  = int(result.group(4))
+        log.info('CURRENT: %s%d:%d%d' %
+                (self.digit1.current,
+                 self.digit2.current,
+                 self.digit3.current,
+                 self.digit4.current))
 
     def save_state(self):
-        fh = open('/root/LegoDigitalClock/digital_clock.state', 'w')
-        fh.write('%d%d:%d%d\n' % (self.digit1.current, self.digit2.current, self.digit3.current, self.digit4.current))
+        fh = open('digital_clock.state', 'w')
+        fh.write('%d%d:%d%d\n' %
+                (self.digit1.current,
+                 self.digit2.current,
+                 self.digit3.current,
+                 self.digit4.current))
         fh.close()
 
     def set_targets(self, use_military_time):
@@ -177,10 +182,10 @@ class LegoClock(BrickPi):
     def move_digit(self, digit):
 
         if digit.current == digit.target:
-            print '%s: is already %d' % (digit, digit.current)
+            log.info('%s: is already %d' % (digit, digit.current))
             return
 
-        print '%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target])
+        log.info('%s: %d -> %d via %s' % (digit, digit.current, digit.target, turns[digit.current][digit.target]))
 
         # About turns[]
         # - the numbers indicate the number of 90 degree turns of the top component
@@ -189,68 +194,28 @@ class LegoClock(BrickPi):
         # I am using a 1:3 ratio so to turn the top part 90 degrees I need to rotate the motor 270 degrees.
         # FYI this is a nice page for calculating what gear ratio you are using:
         # http://gears.sariel.pl/
-        #
-        # I am using a power of 80
-        print "Current: %d, Target: %d, Turns: %s" % (digit.current, digit.target, str(turns[digit.current][digit.target]))
+        log.info("%s: Current %d, Target %d, Turns %s" %
+                (digit,
+                 digit.current,
+                 digit.target,
+                 str(turns[digit.current][digit.target])))
+
         for x in turns[digit.current][digit.target]:
-            digit.rotate(80, 270 * -x)
+            log.info("%s: turn %d" % (digit, x))
+            digit.run_to_rel_pos(position_sp=270 * -x,
+                                 speed_sp=200,
+                                 stop_action='hold')
+            digit.wait_for_running()
+            digit.wait_for_stop()
+
+        digit.stop(stop_action='coast')
         digit.current = digit.target
 
     def move_digits(self):
-
         self.move_digit(self.digit4)
         self.move_digit(self.digit3)
         self.move_digit(self.digit2)
         self.move_digit(self.digit1)
-        return
-
-        # Enable this once it is thread safe
-        '''
-        # Must change all 4 digits
-        if (self.digit1.current != self.digit1.target and
-            self.digit2.current != self.digit2.target and
-            self.digit3.current != self.digit3.target and
-            self.digit4.current != self.digit4.target):
-            log.info('move_digits: change 4 digits')
-
-            self.digit2.start()
-            self.digit4.start()
-            self.digit2.join()
-            self.digit4.join()
-
-            self.digit1.start()
-            self.digit3.start()
-            self.digit1.join()
-            self.digit3.join()
-
-        # Must change 3 digits
-        elif (self.digit2.current != self.digit2.target and
-              self.digit3.current != self.digit3.target and
-              self.digit4.current != self.digit4.target):
-            log.info('move_digits: change 3 digits')
-            self.digit2.start()
-            self.digit4.start()
-            self.digit2.join()
-            self.digit4.join()
-
-            self.digit3.start()
-            self.digit3.join()
-
-        # Must change 2 digits
-        elif (self.digit3.current != self.digit3.target and
-              self.digit4.current != self.digit4.target):
-            log.info('move_digits: change 2 digits')
-            self.digit3.start()
-            self.digit3.join()
-            self.digit4.start()
-            self.digit4.join()
-
-        # Only update the minute
-        elif self.digit4.current != self.digit4.target:
-            log.info('move_digits: change 1 digit')
-            self.digit4.start()
-            self.digit4.join()
-        '''
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG,
@@ -262,6 +227,6 @@ if __name__ == '__main__':
 
     # Use a cronjob to control how often the clock updates
     sleep(1)
-    myclock.set_targets(True)
+    myclock.set_targets(False)
     myclock.move_digits()
     myclock.save_state()
