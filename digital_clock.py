@@ -131,7 +131,6 @@ turns[9][9] = None
 class LegoClock(object):
 
     def __init__(self):
-        self.digits = []
         self.digit1 = LargeMotor(OUTPUT_D)
         self.digit2 = LargeMotor(OUTPUT_C)
         self.digit3 = LargeMotor(OUTPUT_B)
@@ -203,7 +202,7 @@ class LegoClock(object):
         for x in turns[digit.current][digit.target]:
             log.info("%s: turn %d" % (digit, x))
             digit.run_to_rel_pos(position_sp=270 * -x,
-                                 speed_sp=200,
+                                 speed_sp=400,
                                  stop_action='hold')
             digit.wait_for_running()
             digit.wait_for_stop()
@@ -217,16 +216,22 @@ class LegoClock(object):
         self.move_digit(self.digit2)
         self.move_digit(self.digit1)
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)5s: %(message)s')
     log = logging.getLogger(__name__)
-
     myclock = LegoClock()
-    myclock.load_state()
 
-    # Use a cronjob to control how often the clock updates
-    sleep(1)
-    myclock.set_targets(False)
-    myclock.move_digits()
-    myclock.save_state()
+    try:
+        myclock.load_state()
+        myclock.set_targets(use_military_time=False)
+        myclock.move_digits()
+        myclock.save_state()
+    except:
+        pass
+
+    myclock.digit1.stop(stop_action='coast')
+    myclock.digit2.stop(stop_action='coast')
+    myclock.digit3.stop(stop_action='coast')
+    myclock.digit4.stop(stop_action='coast')
