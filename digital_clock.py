@@ -5,7 +5,7 @@ import sys
 import datetime
 import logging
 from time import sleep
-from ev3dev.auto import OUTPUT_A, OUTPUT_B, OUTPUT_C, OUTPUT_D
+from ev3dev.auto import OUTPUT_A, OUTPUT_B, OUTPUT_C, OUTPUT_D, TouchSensor
 from ev3dev.helper import LargeMotor
 
 log = logging.getLogger(__name__)
@@ -135,6 +135,7 @@ class LegoClock(object):
         self.digit2 = LargeMotor(OUTPUT_C)
         self.digit3 = LargeMotor(OUTPUT_B)
         self.digit4 = LargeMotor(OUTPUT_A)
+        self.button = TouchSensor()
 
     # We keep track of the last known position of each digit
     def load_state(self):
@@ -213,8 +214,10 @@ class LegoClock(object):
     def move_digits(self):
         self.move_digit(self.digit4)
         self.move_digit(self.digit3)
-        self.move_digit(self.digit2)
-        self.move_digit(self.digit1)
+
+        # Two of my motors burned up so commenting those two out for now
+        # self.move_digit(self.digit2)
+        # self.move_digit(self.digit1)
 
 
 if __name__ == '__main__':
@@ -225,11 +228,18 @@ if __name__ == '__main__':
 
     try:
         myclock.load_state()
-        myclock.set_targets(use_military_time=False)
-        myclock.move_digits()
-        myclock.save_state()
-    except:
-        pass
+
+        while True:
+            if myclock.button.is_pressed():
+                myclock.set_targets(use_military_time=False)
+                myclock.move_digits()
+                myclock.save_state()
+            else:
+                sleep(1)
+    except Exception as e:
+        log.exception(e)
+    except KeyboardInterrupt:
+        log.info('caught ctrl-C')
 
     myclock.digit1.stop(stop_action='coast')
     myclock.digit2.stop(stop_action='coast')
