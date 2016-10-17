@@ -213,10 +213,8 @@ class LegoClock(object):
     def move_digits(self):
         self.move_digit(self.digit4)
         self.move_digit(self.digit3)
-
-        # Two of my motors burned up so commenting those two out for now
-        # self.move_digit(self.digit2)
-        # self.move_digit(self.digit1)
+        self.move_digit(self.digit2)
+        self.move_digit(self.digit1)
 
 
 if __name__ == '__main__':
